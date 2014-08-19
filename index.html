@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+    <meta charset='utf-8'>
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <meta name="description" content="Practicalmachinelearning : Practical Machine Learning">
+
+    <link rel="stylesheet" type="text/css" media="screen" href="stylesheets/stylesheet.css">
+
+    <title>Practicalmachinelearning</title>
+  </head>
+
+  <body>
+
+    <!-- HEADER -->
+    <div id="header_wrap" class="outer">
+        <header class="inner">
+          <a id="forkme_banner" href="https://github.com/malcolmmacrae/PracticalMachineLearning">View on GitHub</a>
+
+          <h1 id="project_title">Practicalmachinelearning</h1>
+          <h2 id="project_tagline">Practical Machine Learning</h2>
+
+            <section id="downloads">
+              <a class="zip_download_link" href="https://github.com/malcolmmacrae/PracticalMachineLearning/zipball/master">Download this project as a .zip file</a>
+              <a class="tar_download_link" href="https://github.com/malcolmmacrae/PracticalMachineLearning/tarball/master">Download this project as a tar.gz file</a>
+            </section>
+        </header>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div id="main_content_wrap" class="outer">
+      <section id="main_content" class="inner">
+        <p>&lt;!DOCTYPE html&gt;</p>
+
+<p></p>
+
+<p></p>
+
+<p></p>
+
+<p></p><p></p>
+
+code{white-space: pre;}<p></p>
+
+
+  pre:not([class]) {
+    background-color: white;
+  }
+<p></p>
+
+<p></p>
+
+
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+<div>
+
+
+
+
+<div>
+<h1>
+<a name="practical-machine-learning-course-project" class="anchor" href="#practical-machine-learning-course-project"><span class="octicon octicon-link"></span></a>Practical Machine Learning Course Project</h1>
+<div>
+<h2>
+<a name="executive-summary" class="anchor" href="#executive-summary"><span class="octicon octicon-link"></span></a>Executive Summary</h2>
+<p>This analysis applied a random-forest machine-learning algorithm to predict the manner in which a participant performed a bicep curl based on accelerometer, gyroscope, and magnetometer measurements. Cross-validation on the training dataset was performed using K-fold resampling (K=3). Prediction accuracy using the random-forest algorithm averaged over 99%, and generalized to the testing set with 100% accuracy.</p>
+</div>
+
+<div>
+<h2>
+<a name="data-description" class="anchor" href="#data-description"><span class="octicon octicon-link"></span></a>Data Description</h2>
+<p>The <a href="http://groupware.les.inf.puc-rio.br/static/WLE/WearableComputing_weight_lifting_exercises_biceps_curl_variations.csv">weight-lifting exercises (WLE) dataset</a> was prepared by Human Activity Recognition researchers at the Pontifical Catholic University of Rio de Janeiro. This dataset used on-body sensors to quantify the manner in which a participant performed the Unilateral Dumbbell Biceps Curl.</p>
+<p>The on-body sensors used in this study are more accurately described as <a href="http://en.wikipedia.org/wiki/Inertial_measurement_unit">inertial measurement units</a> (IMU). An IMU uses a combination of accelerometers, gyroscopes, and magnetometers to measure velocity, orientation, and gravitational forces. The WLE dataset tabulates accelerometer, gyroscope, and magnetometer readings from IMU’s on the belt, arm, dumbbell, and forearm when the participant performed a bicep curl. These observations constitute the predictor variables for the machine-learning algorithm.</p>
+<p>In the study, six young health participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E). The manner in which the participant performed the bicep curl constitutes the response variable that the machine-learning algorithm will predict.</p>
+</div>
+
+<div>
+<h2>
+<a name="getting-and-cleaning-data" class="anchor" href="#getting-and-cleaning-data"><span class="octicon octicon-link"></span></a>Getting and Cleaning Data</h2>
+<p>Data is divided into two sets: training and testing. The training dataset that will be used to calibrate the machine-learning algorithm comprises 19,622 observations across 160 variables. The testing dataset that will be used to evaluate the accuracy of the machine-learning algorithm is limited to 20 observations across 160 variables. 159 of the variables in the testing set mirror those in the training set: the testing set omits the response variable, and duplicates the observation index.</p>
+<pre><code>    training.raw &lt;- read.csv("pml-training.csv")
+    testing.raw &lt;- read.csv("pml-testing.csv")</code></pre>
+<p>Of the 160 variables in the testing set, only 60 variables contain at least one non-blank variable. To avoid the waste of training a machine-learning algorithm on variables that do not exist in the testing set, both the training and testing data sets were limited to include only these 60 variables.</p>
+<pre><code>    num.na &lt;- function(x) {sum(is.na(x))}
+    training.cols &lt;- names(which(apply(training.raw, 2, num.na) &lt; dim(training.raw)[1]))
+    testing.cols &lt;- names(which(apply(testing.raw, 2, num.na) &lt; dim(testing.raw)[1]))
+
+    training &lt;- training.raw[c(as.numeric(na.omit(match(testing.cols, training.cols))),160)]
+    testing &lt;- testing.raw[,testing.cols]</code></pre>
+</div>
+
+<div>
+<h2>
+<a name="exploratory-data-analysis" class="anchor" href="#exploratory-data-analysis"><span class="octicon octicon-link"></span></a>Exploratory Data Analysis</h2>
+<p>Exploratory data analysis was performed on the training dataset by plotting the response variable against each of the 59 predictor variables.</p>
+<pre><code>for (i in 1:(length(training)-1)) {
+    plot(if(is.numeric(training[,i])) jitter(training[,i]) else training[,i], 
+         if(is.numeric(training[,i])) jitter(as.numeric(training$classe)) else training$classe, 
+         xlab=paste(i, names(training[i]))); 
+    scan();
+}</code></pre>
+<p>Exploratory data analysis identified nine apparent outliers in the training data set. In these observations, at least one variable differed notably from the distribution within the factor level or from the overall distribution. These outliers were excluded from the training set.</p>
+<pre><code>    training &lt;- training[c(-152,-943,-5373,-7265,-9274,-9941,-16025,-18209,-18210),]</code></pre>
+</div>
+
+<div>
+<h2>
+<a name="covariate-selection" class="anchor" href="#covariate-selection"><span class="octicon octicon-link"></span></a>Covariate Selection</h2>
+<p>The goal of this analysis is to predict the manner in which a participant performed a bicep curl based on INU measurements. The WLE dataset includes accelerometer, gyroscope, and magnetometer readings from the INU; however, it also includes seven superfluous variables such as the participant name, and the date and time that the exercise was performed. This analysis excludes these superfluous variables to focus solely on the relationship between the INU measurements and the manner in which the bicep curl was performed.</p>
+<pre><code>    training &lt;- training[,-c(1:7)]
+    testing &lt;- testing[,-c(1:7)]</code></pre>
+</div>
+
+<div>
+<h2>
+<a name="cross-validation" class="anchor" href="#cross-validation"><span class="octicon octicon-link"></span></a>Cross-Validation</h2>
+<p><a href="http://en.wikipedia.org/wiki/Cross-validation_%28statistics%29">Cross-validation</a> estimates how well a model will generalize to new data. Training a machine-learning algorithm over the entire training set can over-fit the model to the training data, and thereby increase out-of-sample error. To minimize over-fitting, this analysis divides the training dataset into thirds using K-fold resampling: each third of the training dataset is used as one testing subset; the remaining two-thirds of the training dataset are used as the corresponding training subset.</p>
+<pre><code>    K &lt;- 3
+    folds &lt;- createFolds(y=training$classe, k=K)</code></pre>
+<p>The K-fold resampling algorithm is specified on the response variable of the training set to ensure that the percentage of observations sampled from each factor level remains reasonably constant across sets.</p>
+</div>
+
+<div>
+<h2>
+<a name="random-forests" class="anchor" href="#random-forests"><span class="octicon octicon-link"></span></a>Random Forests</h2>
+<pre><code>## randomForest 4.6-10
+## Type rfNews() to see new features/changes/bug fixes.</code></pre>
+<p>This analysis trains three <a href="http://en.wikipedia.org/wiki/Random_forest">random forest</a> models–one over each training subset defined in the K-fold resampling–and then evaluates the model against the corresponding testing subset. If prediction accuracy remains constant across the data subsets, the model is more likely to generalize well to the true testing set.</p>
+<pre><code>    #   Initialize lists of models, predicted values, confusion tables, and accuracies.
+    fit &lt;- pred &lt;- ct &lt;- accuracy &lt;- test &lt;- list()
+    
+    #   Iterate through folds. For each fold, ...
+    for (i.fold in 1:K) {
+        
+        #   Separate training data into training and validation sets.
+        training.fold &lt;- training[-folds[[i.fold]],]
+        validation.fold &lt;- training[folds[[i.fold]],]
+    
+        #   Fit classification-tree model to training set.
+        fit[[i.fold]] &lt;- randomForest(classe ~ ., data=training.fold)
+        
+        #   Predict validation set based on training model.
+        pred[[i.fold]] &lt;- predict(fit[[i.fold]], newdata=validation.fold)
+        
+        #   Create confusion table and calculate prediction accuracy.
+        ct[[i.fold]] &lt;- table(pred[[i.fold]], validation.fold$classe)
+        accuracy[[i.fold]] &lt;- sum(diag(ct[[i.fold]]))/sum(ct[[i.fold]])
+    
+        #   Predict testing set based on training model.
+        test[[i.fold]] &lt;- predict(fit[[i.fold]], newdata=testing)
+        
+    }</code></pre>
+</div>
+
+<div>
+<h2>
+<a name="error-estimates" class="anchor" href="#error-estimates"><span class="octicon octicon-link"></span></a>Error Estimates</h2>
+<p>The average prediction accuracy over the three random-forest models exceeds 99 percent.</p>
+<pre><code>    paste("Average prediction accuracy =", round(mean(unlist(accuracy)),4))</code></pre>
+<pre><code>## [1] "Average prediction accuracy = 0.9937"</code></pre>
+<p>This accuracy is a reasonable estimate of the prediction accuracy for the testing dataset. The out-of-sample error (i.e. 1 - accuracy) is expected to fall under 1%.</p>
+</div>
+
+<div>
+<h2>
+<a name="testing-data" class="anchor" href="#testing-data"><span class="octicon octicon-link"></span></a>Testing Data</h2>
+<p>The predicted values from each of the models are aggregated by majority vote: the most common predicted value across the three models is deemed to be the ultimate predicted value. In this analysis, however, this ensemble method is unnecessary: applying each of the three random-forest models to the testing data yields the same predicted values.</p>
+<pre><code>    data.frame(sapply(1:3, function(x) test[[x]]))</code></pre>
+<pre><code>##    X1 X2 X3
+## 1   B  B  B
+## 2   A  A  A
+## 3   B  B  B
+## 4   A  A  A
+## 5   A  A  A
+## 6   E  E  E
+## 7   D  D  D
+## 8   B  B  B
+## 9   A  A  A
+## 10  A  A  A
+## 11  B  B  B
+## 12  C  C  C
+## 13  B  B  B
+## 14  A  A  A
+## 15  E  E  E
+## 16  E  E  E
+## 17  A  A  A
+## 18  B  B  B
+## 19  B  B  B
+## 20  B  B  B</code></pre>
+<p>The predicted values for the testing dataset were 100 percent accurate.</p>
+</div>
+
+<div>
+<h2>
+<a name="references" class="anchor" href="#references"><span class="octicon octicon-link"></span></a>References</h2>
+<p>Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. <a href="http://groupware.les.inf.puc-rio.br/work.jsf?p1=11201">Qualitative Activity Recognition of Weight Lifting Exercises</a>. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human ’13) . Stuttgart, Germany: ACM SIGCHI, 2013.</p>
+</div>
+
+<p></p>
+</div>
+
+<p></p>
+</div>
+
+<p>
+</p>
+      </section>
+    </div>
+
+    <!-- FOOTER  -->
+    <div id="footer_wrap" class="outer">
+      <footer class="inner">
+        <p class="copyright">Practicalmachinelearning maintained by <a href="https://github.com/malcolmmacrae">malcolmmacrae</a></p>
+        <p>Published with <a href="http://pages.github.com">GitHub Pages</a></p>
+      </footer>
+    </div>
+
+    
+
+  </body>
+</html>
