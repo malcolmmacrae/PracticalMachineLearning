@@ -1,0 +1,135 @@
+#   Practical Machine Learning Course Project
+
+##  Executive Summary
+
+This analysis applied a random-forest machine-learning algorithm to predict the manner in which a participant performed a bicep curl based on accelerometer, gyroscope, and magnetometer measurements. Cross-validation on the training dataset was performed using K-fold resampling (K=3). Prediction accuracy using the random-forest algorithm averaged over 99%, and generalized to the testing set with 100% accuracy.
+
+##  Data Description
+
+The [weight-lifting exercises (WLE) dataset](http://groupware.les.inf.puc-rio.br/static/WLE/WearableComputing_weight_lifting_exercises_biceps_curl_variations.csv) was prepared by Human Activity Recognition researchers at the Pontifical Catholic University of Rio de Janeiro. This dataset used on-body sensors to quantify the manner in which a participant performed the Unilateral Dumbbell Biceps Curl.
+
+The on-body sensors used in this study are more accurately described as [inertial measurement units](http://en.wikipedia.org/wiki/Inertial_measurement_unit) (IMU). An IMU uses a combination of accelerometers, gyroscopes, and magnetometers to measure velocity, orientation, and gravitational forces. The WLE dataset tabulates accelerometer, gyroscope, and magnetometer readings from IMU's on the belt, arm, dumbbell, and forearm when the participant performed a bicep curl. These observations constitute the predictor variables for the machine-learning algorithm.
+
+In the study, six young health participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E). The manner in which the participant performed the bicep curl constitutes the response variable that the machine-learning algorithm will predict.
+
+##  Getting and Cleaning Data
+
+Data is divided into two sets: training and testing. The training dataset that will be used to calibrate the machine-learning algorithm comprises 19,622 observations across 160 variables. The testing dataset that will be used to evaluate the accuracy of the machine-learning algorithm is limited to 20 observations across 160 variables. 159 of the variables in the testing set mirror those in the training set: the testing set omits the response variable, and duplicates the observation index.
+
+```{r}
+    training.raw <- read.csv("pml-training.csv")
+    testing.raw <- read.csv("pml-testing.csv")
+```
+
+Of the 160 variables in the testing set, only 60 variables contain at least one non-blank variable. To avoid the waste of training a machine-learning algorithm on variables that do not exist in the testing set, both the training and testing data sets were limited to include only these 60 variables.
+
+```{r}
+    num.na <- function(x) {sum(is.na(x))}
+    training.cols <- names(which(apply(training.raw, 2, num.na) < dim(training.raw)[1]))
+    testing.cols <- names(which(apply(testing.raw, 2, num.na) < dim(testing.raw)[1]))
+
+    training <- training.raw[c(as.numeric(na.omit(match(testing.cols, training.cols))),160)]
+    testing <- testing.raw[,testing.cols]
+```
+
+##  Exploratory Data Analysis
+
+Exploratory data analysis was performed on the training dataset by plotting the response variable against each of the 59 predictor variables.
+
+    for (i in 1:(length(training)-1)) {
+        plot(if(is.numeric(training[,i])) jitter(training[,i]) else training[,i], 
+             if(is.numeric(training[,i])) jitter(as.numeric(training$classe)) else training$classe, 
+             xlab=paste(i, names(training[i]))); 
+        scan();
+    }
+
+Exploratory data analysis identified nine apparent outliers in the training data set. In these observations, at least one variable differed notably from the distribution within the factor level or from the overall distribution. These outliers were excluded from the training set.
+
+```{r}
+    training <- training[c(-152,-943,-5373,-7265,-9274,-9941,-16025,-18209,-18210),]
+```
+    
+##  Covariate Selection
+
+The goal of this analysis is to predict the manner in which a participant performed a bicep curl based on INU measurements. The WLE dataset includes accelerometer, gyroscope, and magnetometer readings from the INU; however, it also includes seven superfluous variables such as the participant name, and the date and time that the exercise was performed. This analysis excludes these superfluous variables to focus solely on the relationship between the INU measurements and the manner in which the bicep curl was performed.
+
+```{r}
+    training <- training[,-c(1:7)]
+    testing <- testing[,-c(1:7)]
+```
+
+##  Cross-Validation
+
+```{r, echo=FALSE}
+    library(lattice)
+    library(ggplot2)
+    library(caret)
+```
+
+[Cross-validation](http://en.wikipedia.org/wiki/Cross-validation_%28statistics%29) estimates how well a model will generalize to new data. Training a machine-learning algorithm over the entire training set can over-fit the model to the training data, and thereby increase out-of-sample error. To minimize over-fitting, this analysis divides the training dataset into thirds using K-fold resampling: each third of the training dataset is used as one testing subset; the remaining two-thirds of the training dataset are used as the corresponding training subset.
+
+```{r}
+    K <- 3
+    folds <- createFolds(y=training$classe, k=K)
+```
+    
+The K-fold resampling algorithm is specified on the response variable of the training set to ensure that the percentage of observations sampled from each factor level remains reasonably constant across sets.
+
+##  Random Forests
+
+```{r, echo=FALSE}
+    library(randomForest, quietly=TRUE)
+```
+
+This analysis trains three [random forest](http://en.wikipedia.org/wiki/Random_forest) models--one over each training subset defined in the K-fold resampling--and then evaluates the model against the corresponding testing subset. If prediction accuracy remains constant across the data subsets, the model is more likely to generalize well to the true testing set.
+
+```{r}
+    #   Initialize lists of models, predicted values, confusion tables, and accuracies.
+    fit <- pred <- ct <- accuracy <- test <- list()
+    
+    #   Iterate through folds. For each fold, ...
+    for (i.fold in 1:K) {
+        
+        #   Separate training data into training and validation sets.
+        training.fold <- training[-folds[[i.fold]],]
+        validation.fold <- training[folds[[i.fold]],]
+    
+        #   Fit classification-tree model to training set.
+        fit[[i.fold]] <- randomForest(classe ~ ., data=training.fold)
+        
+        #   Predict validation set based on training model.
+        pred[[i.fold]] <- predict(fit[[i.fold]], newdata=validation.fold)
+        
+        #   Create confusion table and calculate prediction accuracy.
+        ct[[i.fold]] <- table(pred[[i.fold]], validation.fold$classe)
+        accuracy[[i.fold]] <- sum(diag(ct[[i.fold]]))/sum(ct[[i.fold]])
+    
+        #   Predict testing set based on training model.
+        test[[i.fold]] <- predict(fit[[i.fold]], newdata=testing)
+        
+    }
+```
+
+##  Error Estimates
+
+The average prediction accuracy over the three random-forest models exceeds 99 percent.
+
+```{r}
+    paste("Average prediction accuracy =", round(mean(unlist(accuracy)),4))
+```
+
+This accuracy is a reasonable estimate of the prediction accuracy for the testing dataset. The out-of-sample error (i.e. 1 - accuracy) is expected to fall under 1%.
+
+##  Testing Data
+
+The predicted values from each of the models are aggregated by majority vote: the most common predicted value across the three models is deemed to be the ultimate predicted value. In this analysis, however, this ensemble method is unnecessary: applying each of the three random-forest models to the testing data yields the same predicted values.
+
+```{r}
+    data.frame(sapply(1:3, function(x) test[[x]]))
+```
+
+The predicted values for the testing dataset were 100 percent accurate.
+
+##  References
+
+Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. [Qualitative Activity Recognition of Weight Lifting Exercises](http://groupware.les.inf.puc-rio.br/work.jsf?p1=11201). Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013. 
